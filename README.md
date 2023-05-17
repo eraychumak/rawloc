@@ -1,6 +1,6 @@
 ﻿# Rawloc
 
-This small program parses a `Records.json` file belonging to [Location History](https://locationhistoryformat.com/reference/records/), which is exported from a Google Takeout. It breaks down and categorises years worth of location history data into managable csv files that can then be used in other programs, such as, [Excel](https://www.microsoft.com/en/microsoft-365/excel).
+This small program parses a `Records.json` file belonging to [Location History](https://locationhistoryformat.com/reference/records/), which is exported from a Google Takeout. It breaks down and categorises years worth of location history data into manageable csv files that can then be used in other programs, such as, [Excel](https://www.microsoft.com/en/microsoft-365/excel).
 
 The following is an example of the output folder structure to expect after parsing a `Records.json` file:
 
