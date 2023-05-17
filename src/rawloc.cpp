@@ -7,12 +7,48 @@
 #include <set>
 #include <map>
 
+std::set<std::string> discoverLocationFields(yyjson_val* locations)
+{
+    std::set<std::string> headings;
+
+    size_t idxLoc, maxLoc;
+    yyjson_val* location;
+
+    // discover all potential fields
+    yyjson_arr_foreach(locations, idxLoc, maxLoc, location)
+    {
+        size_t idxKey, maxKey;
+        yyjson_val* key, * val;
+        
+        yyjson_obj_foreach(location, idxKey, maxKey, key, val) {
+            std::string sKey = yyjson_get_str(key);
+
+            if (headings.contains(sKey))
+            {
+                continue;
+            }
+            else
+            {
+                headings.insert(sKey);
+            }
+        }
+    }
+
+    return headings;
+}
+
 int main(int argc, char *argv[])
 {
     if (argc > 2)
     {
-        std::cout << "[RAWLOC] Too many arguments.";
-        return 1;
+        std::cout << "[RAWLOC] Too many arguments given" << std::endl;
+        return 0;
+    }
+
+    if (argc == 1)
+    {
+        std::cout << "[RAWLOC] Please specify a path to the records file." << std::endl;
+        return 0;
     }
 
     char* recordsPathArg = argv[1];
@@ -20,7 +56,7 @@ int main(int argc, char *argv[])
     std::filesystem::path recordsPath = recordsPathArg;
     std::filesystem::path parentFolder = recordsPath.parent_path();
 
-    std::cout << "[RAWLOC] Selected records path: " << recordsPathArg << std::endl;
+    std::cout << "[RAWLOC] Selected records at: " << recordsPathArg << std::endl;
 
     FILE* fp = nullptr;
     
@@ -30,9 +66,7 @@ int main(int argc, char *argv[])
    
     if (doc)
     {
-        std::string csvHeadings = "timestampMs, latitudeE7, longitudeE7, accuracy, source, deviceTag";
-        
-        std::cout << "[RAWLOC] File opened." << std::endl;
+        std::cout << "[RAWLOC] Opening records file" << std::endl;
 
         yyjson_val *root = yyjson_doc_get_root(doc);
         yyjson_val *locations = yyjson_obj_get(root, "locations");
@@ -40,84 +74,105 @@ int main(int argc, char *argv[])
         
         std::cout << "[RAWLOC] " << locationsCount << " locations found" << std::endl;
 
-        std::map<int, std::ofstream> devices;
+        std::set<int> devices;
+        std::map<std::string, std::ofstream> deviceYears;
+
+        std::set<std::string> headings = discoverLocationFields(locations);
+
+        std::cout << "[RAWLOC] Discovered " << headings.size() << " different fields for a location" << std::endl;
+        std::string headingsRow;
+        
+        // format discovered fields into a csv heading string
+        for (auto x = headings.begin(); x != headings.end(); ++x)
+        {
+            if (x != headings.begin())
+            {
+                headingsRow += ",";
+            }
+         
+            headingsRow += *x;
+        }
 
         size_t idx, max;
         yyjson_val* location;
 
-        std::set<std::string> headings;
-
+        // iterate over each location and write to its relevant file.
         yyjson_arr_foreach(locations, idx, max, location)
         {
-            size_t idx, max;
-            yyjson_val* key, * val;
-            yyjson_obj_foreach(location, idx, max, key, val) {
-                std::string sKey = yyjson_get_str(key);
-                
-                if (headings.contains(sKey))
-                {
-                    continue;
-                }
-                else
-                {
-                    headings.insert(sKey);
-                }
-            }
-        }
+            std::string row = newLocRow(headings, location);
 
-        for (std::string heading : headings)
-        {
-            std::cout << heading;
-        }
-
-
-        yyjson_arr_foreach(locations, idx, max, location)
-        {
-            std::string row = newLocRow(location);
-                
             int deviceTag = getIntVal(location, "deviceTag");
-                
+            std::string year;
+
+            yyjson_val* timestampMs = yyjson_obj_get(location, "timestampMs");
+
+            if (timestampMs)
+            {
+                std::string strVal = yyjson_get_str(timestampMs);
+                year = getYear(strVal);
+            }
+            else
+            {
+                year = "noYear";
+            }
+
             std::filesystem::path deviceFolderPath = parentFolder;
-            deviceFolderPath /= "out";
+            deviceFolderPath /= "DevicesLocationHistoryCSVs";
             deviceFolderPath /= std::to_string(deviceTag);
 
+            // create new folder for new device tags
             if (devices.find(deviceTag) == devices.end())
             {
-                std::cout << "[RAWLOC] New device detected, creating new folder at: " << deviceFolderPath.string() << std::endl;
+                std::cout << "[RAWLOC] New device discovered, creating new folder for it at: " << deviceFolderPath.string() << std::endl;
                 std::filesystem::create_directories(deviceFolderPath);
+                devices.insert(deviceTag);
+            }
 
-                std::filesystem::path recordsPath = deviceFolderPath;
-                recordsPath /= "records.csv";
+            std::string deviceYearID = std::to_string(deviceTag) + "-" + year;
 
-                devices.emplace(deviceTag, std::ofstream(recordsPath));
+            // create new file for discovered year in the device folder
+            if (deviceYears.find(deviceYearID) == deviceYears.end())
+            {
+                std::cout << "[RAWLOC] New year '" << year << "' discovered for device '" << deviceTag << "'" << std::endl;
+                
+                std::filesystem::path yearRecordsPath = deviceFolderPath;
+                yearRecordsPath /= year + ".csv";
 
-                std::ofstream& recordsFile = devices[deviceTag];
+                deviceYears.emplace(deviceYearID, std::ofstream(yearRecordsPath));
+
+                std::ofstream& recordsFile = deviceYears[deviceYearID];
 
                 if (recordsFile.is_open())
                 {
-                    std::cout << "[RAWLOC] Created records file for: " << deviceTag << std::endl;
-                    recordsFile << csvHeadings << std::endl;
+                    std::cout << "[RAWLOC] Created records file for device '" << deviceTag << "' at: " << yearRecordsPath.string() << std::endl;
+                    recordsFile << headingsRow << std::endl;
                 }
                 else
                 {
-                    std::cout << "[RAWLOC] Could not create new file." << std::endl;
+                    std::cout << "[RAWLOC] Could not create records file for deviceTag '" << deviceTag << "'" << std::endl;
                     return 0;
                 }
             }
 
-            std::ofstream& recordsFile = devices[deviceTag];
+            std::ofstream& recordsFile = deviceYears[deviceYearID];
             recordsFile << row << std::endl;
         }
 
-        for (auto const& [deviceTag, val] : devices)
+        // close all opened files for devices
+        for (auto const& [deviceYearID, val] : deviceYears)
         {
-            std::ofstream& recordsFile = devices[deviceTag];
-            std::cout << "[RAWLOC] Closing records file for device: " << deviceTag << std::endl;
+            std::ofstream& recordsFile = deviceYears[deviceYearID];
+            std::cout << "[RAWLOC] Closing file ID: '" << deviceYearID << "'" << std::endl;
             recordsFile.close();
         }
-    }
+        
+        yyjson_doc_free(doc);
 
-    yyjson_doc_free(doc);
+        std::cout << "[RAWLOC] Done" << std::endl;
+    }
+    else {
+        std::cout << "[RAWLOC] Could not find the file by the path specified" << std::endl;
+    }
 
     return 0;
 }

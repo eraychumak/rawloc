@@ -5,6 +5,22 @@
 #include <filesystem>
 #include <yyjson.h>
 #include <fstream>
+#include <set>
+#include <vector>
+#include <chrono>
+
+std::string getYear(std::string ms)
+{
+    unsigned long long int secs = std::strtoull(ms.c_str(), nullptr, 0) / 1000;
+
+    std::chrono::time_point tp = std::chrono::sys_seconds{
+        std::chrono::seconds(secs)
+    };
+
+    std::string s = std::format("{:%Y}", tp);
+
+    return s;
+}
 
 int getIntVal(yyjson_val* obj, const char* key) {
     yyjson_val* val = yyjson_obj_get(obj, key);
@@ -16,40 +32,44 @@ std::string getStrVal(yyjson_val* obj, const char* key) {
     return yyjson_get_str(val);
 }
 
-std::string newLocRow(yyjson_val* location) {
-    std::string row;
+std::string newLocRow(std::set<std::string> headings, yyjson_val* location) {
+    std::vector<std::string> row;
 
-    const char* timestampMs = "timestampMs";
-    std::string col1 = getStrVal(location, timestampMs);
-    row.append(col1);
+    for (std::string heading : headings)
+    {
+        yyjson_val* col = yyjson_obj_get(location, heading.c_str());
 
-    uint64_t secs = std::atoi(col1.c_str()) / 1000;
+        if (!col)
+        {
+            row.push_back("");
+            continue;
+        }
 
-    std::cout << col1 << std::endl;
-    std::cout << std::chrono::sys_seconds{ std::chrono::seconds(secs) } << std::endl;
+        if (yyjson_is_str(col))
+        {
+            row.push_back(yyjson_get_str(col));
+        }
+        else if (yyjson_is_int(col))
+        {
+            row.push_back(std::to_string(yyjson_get_int(col)));
+        }
+        else
+        {
+            row.push_back("Field Not Supported");
+        }
+    }
 
-    /*uint64_t i = std::stoi(col1);
-    std::cout << std::chrono::sys_seconds{ std::chrono::seconds(i) } << '\n';*/
+    std::string csvRow;
 
-    const char* latitudeE7 = "latitudeE7";
-    std::string col2 = std::to_string(getIntVal(location, latitudeE7));
-    row.append("," + col2);
+    for (auto x = row.begin(); x != row.end(); ++x)
+    {
+        if (x != row.begin())
+        {
+            csvRow += ",";
+        }
 
-    const char* longitudeE7 = "longitudeE7";
-    std::string col3 = std::to_string(getIntVal(location, longitudeE7));
-    row.append("," + col3);
+        csvRow += *x;
+    }
 
-    const char* accuracy = "accuracy";
-    std::string col4 = std::to_string(getIntVal(location, accuracy));
-    row.append("," + col4);
-
-    const char* source = "source";
-    std::string col5 = getStrVal(location, source);
-    row.append("," + col5);
-
-    const char* deviceTag = "deviceTag";
-    std::string col6 = std::to_string(getIntVal(location, deviceTag));
-    row.append("," + col6);
-
-    return row;
+    return csvRow;
 }
