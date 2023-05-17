@@ -13,6 +13,10 @@ The following is an example of the output folder structure to expect after parsi
 │   │   ├── 2021.csv
 ```
 
+## Preview
+
+![Screenshot of program being run](./screenshots/preview.png "Preview v1.0.0")
+
 ## Contributing
 
 This section is intended as a guide for people who want to locally build the program and/or contribute to the source code.
