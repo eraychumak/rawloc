@@ -5,7 +5,7 @@ This small program parses a `Records.json` file belonging to [Location History](
 The following is an example of the output folder structure to expect after parsing a `Records.json` file:
 
 ```
-├── out
+├── DevicesLocationHistoryCSVs
 │   ├── {deviceTag1}
 │   │   ├── 2023.csv
 │   │   ├── 2022.csv
@@ -16,6 +16,19 @@ The following is an example of the output folder structure to expect after parsi
 ## Preview
 
 ![Screenshot of program being run](./screenshots/preview.png "Preview v1.0.0")
+
+## Usage
+
+This is a portable binary _(.exe)_ meaning it does not come with any installation or extra steps.
+
+1. Download the release build.
+2. Run in terminal:
+
+```bash
+./rawloc.exe <path_to_records_file>
+```
+
+Running the program will generate a `DevicesLocationHistoryCSVs` directory at the same location where the `Records.json` file is located.
 
 ## Contributing
 
